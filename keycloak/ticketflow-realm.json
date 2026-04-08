@@ -1,0 +1,341 @@
+{
+  "realm": "ticketflow",
+  "displayName": "TicketFlow",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 3600,
+  "refreshTokenMaxReuse": 0,
+  "revokeRefreshToken": false,
+  
+  "roles": {
+	"realm": [
+	  {
+		"name": "ADMIN",
+		"description": "Full system access",
+		"composite": false,
+		"clientRole": false,
+		"attributes": {
+		  "permissions": [
+			"user:create user:read user:update user:delete user:manage-roles ticket:create ticket:read ticket:update ticket:delete ticket:comment document:upload document:read document:download notification:read notification:send"
+		  ]
+		}
+	  },
+	  {
+		"name": "AGENT",
+		"description": "Support agent access",
+		"composite": false,
+		"clientRole": false,
+		"attributes": {
+		  "permissions": [
+			"ticket:create ticket:read ticket:update ticket:comment document:upload document:read document:download notification:read"
+		  ]
+		}
+	  },
+	  {
+		"name": "USER",
+		"description": "Standard user access",
+		"composite": false,
+		"clientRole": false,
+		"attributes": {
+		  "permissions": [
+			"ticket:create ticket:read ticket:comment document:upload document:read document:download"
+		  ]
+		}
+	  }
+	]
+  },
+  
+  "clients": [
+	{
+	  "clientId": "ticketflow-api",
+	  "name": "TicketFlow API",
+	  "description": "Main API client for TicketFlow microservices",
+	  "enabled": true,
+	  "clientAuthenticatorType": "client-secret",
+	  "secret": "ticketflow-secret-2024",
+	  "redirectUris": [
+		"http://localhost:8080/*",
+		"http://localhost:3000/*"
+	  ],
+	  "webOrigins": [
+		"http://localhost:8080",
+		"http://localhost:3000"
+	  ],
+	  "publicClient": false,
+	  "bearerOnly": false,
+	  "standardFlowEnabled": true,
+	  "implicitFlowEnabled": false,
+	  "directAccessGrantsEnabled": true,
+	  "serviceAccountsEnabled": true,
+	  "authorizationServicesEnabled": false,
+	  "fullScopeAllowed": true,
+	  "defaultClientScopes": [
+		"openid",
+		"profile",
+		"email",
+		"roles",
+		"web-origins"
+	  ],
+	  "optionalClientScopes": [
+		"address",
+		"phone",
+		"offline_access"
+	  ],
+	  "protocolMappers": [
+		{
+		  "name": "realm-roles-mapper",
+		  "protocol": "openid-connect",
+		  "protocolMapper": "oidc-usermodel-realm-role-mapper",
+		  "consentRequired": false,
+		  "config": {
+			"multivalued": "true",
+			"userinfo.token.claim": "true",
+			"id.token.claim": "true",
+			"access.token.claim": "true",
+			"claim.name": "roles",
+			"jsonType.label": "String"
+		  }
+		},
+		{
+		  "name": "permissions-scope-mapper",
+		  "protocol": "openid-connect",
+		  "protocolMapper": "oidc-usermodel-attribute-mapper",
+		  "consentRequired": false,
+		  "config": {
+			"userinfo.token.claim": "true",
+			"user.attribute": "permissions",
+			"id.token.claim": "true",
+			"access.token.claim": "true",
+			"claim.name": "scope",
+			"jsonType.label": "String"
+		  }
+		},
+		{
+		  "name": "audience-mapper",
+		  "protocol": "openid-connect",
+		  "protocolMapper": "oidc-audience-mapper",
+		  "consentRequired": false,
+		  "config": {
+			"included.client.audience": "ticketflow-api",
+			"id.token.claim": "false",
+			"access.token.claim": "true"
+		  }
+		},
+		{
+		  "name": "username-mapper",
+		  "protocol": "openid-connect",
+		  "protocolMapper": "oidc-usermodel-property-mapper",
+		  "consentRequired": false,
+		  "config": {
+			"userinfo.token.claim": "true",
+			"user.attribute": "username",
+			"id.token.claim": "true",
+			"access.token.claim": "true",
+			"claim.name": "preferred_username",
+			"jsonType.label": "String"
+		  }
+		}
+	  ]
+	}
+  ],
+  
+  "clientScopes": [
+	{
+	  "name": "user:create",
+	  "description": "Create users",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "user:read",
+	  "description": "Read users",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "user:update",
+	  "description": "Update users",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "user:delete",
+	  "description": "Delete users",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "user:manage-roles",
+	  "description": "Manage user roles",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "ticket:create",
+	  "description": "Create tickets",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "ticket:read",
+	  "description": "Read tickets",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "ticket:update",
+	  "description": "Update tickets",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "ticket:delete",
+	  "description": "Delete tickets",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "ticket:comment",
+	  "description": "Comment on tickets",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "document:upload",
+	  "description": "Upload documents",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "document:read",
+	  "description": "Read document metadata",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "document:download",
+	  "description": "Download documents",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "notification:read",
+	  "description": "Read notifications",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	},
+	{
+	  "name": "notification:send",
+	  "description": "Send notifications",
+	  "protocol": "openid-connect",
+	  "attributes": { "include.in.token.scope": "true" }
+	}
+  ],
+  
+  "users": [
+	{
+	  "username": "admin-user",
+	  "email": "admin@ticketflow.com",
+	  "firstName": "Admin",
+	  "lastName": "User",
+	  "enabled": true,
+	  "emailVerified": true,
+	  "credentials": [
+		{
+		  "type": "password",
+		  "value": "admin123",
+		  "temporary": false
+		}
+	  ],
+	  "realmRoles": ["ADMIN"],
+	  "clientRoles": {
+		"ticketflow-api": []
+	  },
+	  "attributes": {
+		"permissions": [
+		  "user:create user:read user:update user:delete user:manage-roles ticket:create ticket:read ticket:update ticket:delete ticket:comment document:upload document:read document:download notification:read notification:send"
+		]
+	  }
+	},
+	{
+	  "username": "agent-user",
+	  "email": "agent@ticketflow.com",
+	  "firstName": "Agent",
+	  "lastName": "User",
+	  "enabled": true,
+	  "emailVerified": true,
+	  "credentials": [
+		{
+		  "type": "password",
+		  "value": "agent123",
+		  "temporary": false
+		}
+	  ],
+	  "realmRoles": ["AGENT"],
+	  "attributes": {
+		"permissions": [
+		  "ticket:create ticket:read ticket:update ticket:comment document:upload document:read document:download notification:read"
+		]
+	  }
+	},
+	{
+	  "username": "regular-user",
+	  "email": "user@ticketflow.com",
+	  "firstName": "Regular",
+	  "lastName": "User",
+	  "enabled": true,
+	  "emailVerified": true,
+	  "credentials": [
+		{
+		  "type": "password",
+		  "value": "user123",
+		  "temporary": false
+		}
+	  ],
+	  "realmRoles": ["USER"],
+	  "attributes": {
+		"permissions": [
+		  "ticket:create ticket:read ticket:comment document:upload document:read document:download"
+		]
+	  }
+	}
+  ],
+  
+  "scopeMappings": [
+	{
+	  "client": "ticketflow-api",
+	  "roles": ["ADMIN", "AGENT", "USER"]
+	}
+  ],
+  
+  "clientScopeMappings": {
+	"ticketflow-api": [
+	  {
+		"client": "ticketflow-api",
+		"roles": ["ADMIN", "AGENT", "USER"]
+	  }
+	]
+  },
+  
+  "browserFlow": "browser",
+  "registrationFlow": "registration",
+  "directGrantFlow": "direct grant",
+  "resetCredentialsFlow": "reset credentials",
+  "clientAuthenticationFlow": "clients",
+  
+  "smtpServer": {},
+  
+  "eventsEnabled": false,
+  "adminEventsEnabled": false,
+  "adminEventsDetailsEnabled": false,
+  
+  "internationalizationEnabled": false,
+  "supportedLocales": [],
+  "defaultLocale": "en"
+}

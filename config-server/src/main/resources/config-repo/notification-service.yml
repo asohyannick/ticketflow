@@ -1,0 +1,22 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: notification-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notification_db
+    username: ticketflow
+    password: ticketflow123
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+kafka:
+  bootstrap-servers: localhost:9092
+  consumer:
+    group-id: notification-group
+    topics:
+      user-created: user.created
+      ticket-created: ticket.created
+      ticket-status-changed: ticket.status.changed

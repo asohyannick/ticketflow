@@ -1,0 +1,34 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/user_db
+    username: ticketflow
+    password: ticketflow123
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# Keycloak admin credentials (for syncing users/roles)
+keycloak:
+  server-url: http://localhost:8180
+  realm: ticketflow
+  client-id: ticketflow-api
+  client-secret: YOUR_CLIENT_SECRET_HERE
+  admin-username: admin
+  admin-password: admin
+
+# Kafka
+kafka:
+  bootstrap-servers: localhost:9092
+  producer:
+    topic:
+      user-created: user.created

@@ -1,0 +1,482 @@
+version: "3.8"
+
+# ─────────────────────────────────────────────
+#  SHARED NETWORK — every container talks here
+# ─────────────────────────────────────────────
+networks:
+  ticketflow-net:
+    driver: bridge
+
+# ─────────────────────────────────────────────
+#  NAMED VOLUMES — data survives container restarts
+# ─────────────────────────────────────────────
+volumes:
+  postgres_user_data:
+  postgres_ticket_data:
+  postgres_notification_data:
+  postgres_document_data:
+  keycloak_data:
+  minio_data:
+  kafka_data:
+  zookeeper_data:
+  prometheus_data:
+
+services:
+
+  # ════════════════════════════════════════════
+  #  LAYER 1 — BASE INFRASTRUCTURE
+  #  These start first. Nothing depends on them
+  #  being "ready" except the next layer.
+  # ════════════════════════════════════════════
+
+  # ── Redis — required by Gateway rate limiter ──
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL for user-service ──
+  postgres-user:
+    image: postgres:15-alpine
+    container_name: postgres-user
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_user_data:/var/lib/postgresql/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow -d user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL for ticket-service ──
+  postgres-ticket:
+    image: postgres:15-alpine
+    container_name: postgres-ticket
+    environment:
+      POSTGRES_DB: ticket_db
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow123
+    ports:
+      - "5433:5432"           # different HOST port to avoid conflict
+    volumes:
+      - postgres_ticket_data:/var/lib/postgresql/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow -d ticket_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL for notification-service ──
+  postgres-notification:
+    image: postgres:15-alpine
+    container_name: postgres-notification
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow123
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_notification_data:/var/lib/postgresql/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow -d notification_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── PostgreSQL for document-service ──
+  postgres-document:
+    image: postgres:15-alpine
+    container_name: postgres-document
+    environment:
+      POSTGRES_DB: document_db
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow123
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_document_data:/var/lib/postgresql/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow -d document_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Zookeeper (required by Kafka) ──
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Keycloak (identity & auth server) ──
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.7
+    container_name: keycloak
+    command: start-dev  --import-realm        # dev mode — no TLS required
+    environment:
+      KC_DB: dev-mem            # in-memory DB for dev (use postgres in prod)
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8180
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    ports:
+      - "8180:8180"
+    volumes:
+      - ./keycloak/ticketflow-realm.json:/opt/keycloak/data/import/ticketflow-realm.json
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8180/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s         # Keycloak is slow to start — give it time
+
+  # ── MinIO (S3-compatible file storage) ──
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"             # S3 API
+      - "9001:9001"             # Web console
+    volumes:
+      - minio_data:/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO bucket initializer ──
+  # Runs once to create ticketflow-bucket, then exits
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin123;
+        mc mb --ignore-existing local/ticketflow-bucket;
+        mc anonymous set public local/ticketflow-bucket;
+        echo 'Bucket ticketflow-bucket created successfully';
+      "
+    networks:
+      - ticketflow-net
+
+  # ── Zipkin (distributed tracing) ──
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9411/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ════════════════════════════════════════════
+  #  LAYER 2 — DEPENDS ON LAYER 1
+  # ════════════════════════════════════════════
+
+  # ── Kafka broker ──
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # PLAINTEXT = inside docker network, PLAINTEXT_HOST = from your laptop
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"   # creates topics automatically
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # ── Kafka UI (optional but very useful for debugging) ──
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    ports:
+      - "8090:8080"             # access at http://localhost:8090
+    networks:
+      - ticketflow-net
+
+  # ── Prometheus (metrics scraper) ──
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - ticketflow-net
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+
+  # ════════════════════════════════════════════
+  #  LAYER 3 — SPRING CLOUD INFRASTRUCTURE
+  #  Must start before business services
+  # ════════════════════════════════════════════
+
+  # ── Eureka Server ──
+  eureka-server:
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Config Server ──
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    container_name: config-server
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+    ports:
+      - "8888:8888"
+    networks:
+      - ticketflow-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ════════════════════════════════════════════
+  #  LAYER 4 — BUSINESS MICROSERVICES
+  # ════════════════════════════════════════════
+
+  # ── user-service ──
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
+      SPRING_DATASOURCE_USERNAME: ticketflow
+      SPRING_DATASOURCE_PASSWORD: ticketflow123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      KEYCLOAK_SERVER_URL: http://keycloak:8180
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8081:8081"
+    networks:
+      - ticketflow-net
+
+  # ── ticket-service ──
+  ticket-service:
+    build:
+      context: ./ticket-service
+      dockerfile: Dockerfile
+    container_name: ticket-service
+    depends_on:
+      postgres-ticket:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      user-service:
+        condition: service_started   # needs user-service for Feign calls
+      config-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ticket:5432/ticket_db
+      SPRING_DATASOURCE_USERNAME: ticketflow
+      SPRING_DATASOURCE_PASSWORD: ticketflow123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8082:8082"
+    networks:
+      - ticketflow-net
+
+  # ── notification-service ──
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    depends_on:
+      postgres-notification:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: ticketflow
+      SPRING_DATASOURCE_PASSWORD: ticketflow123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8083:8083"
+    networks:
+      - ticketflow-net
+
+  # ── document-service ──
+  document-service:
+    build:
+      context: ./document-service
+      dockerfile: Dockerfile
+    container_name: document-service
+    depends_on:
+      postgres-document:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-document:5432/document_db
+      SPRING_DATASOURCE_USERNAME: ticketflow
+      SPRING_DATASOURCE_PASSWORD: ticketflow123
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8084:8084"
+    networks:
+      - ticketflow-net
+
+  # ════════════════════════════════════════════
+  #  LAYER 5 — API GATEWAY (last to start)
+  # ════════════════════════════════════════════
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: api-gateway/Dockerfile
+    container_name: api-gateway
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CLOUD_CONFIG_URI: http://config-server:8888
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8180/realms/ticketflow
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+    ports:
+      - "8080:8080"
+    networks:
+      - ticketflow-net

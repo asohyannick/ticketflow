@@ -1,0 +1,159 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  config:
+    import: optional:configserver:http://localhost:8888
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/ticketflow
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+
+      routes:
+        - id: user-service-api
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**, /api/roles/**, /api/permissions/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                key-resolver: "#{@userKeyResolver}"
+            - RewritePath=/api/(?<segment>.*), /api/${segment}
+
+        - id: user-service-docs
+          uri: lb://user-service
+          predicates:
+            - Path=/user-service/v3/api-docs
+          filters:
+            - RewritePath=/user-service/v3/api-docs, /v3/api-docs
+
+        - id: ticket-service-api
+          uri: lb://ticket-service
+          predicates:
+            - Path=/api/tickets/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                key-resolver: "#{@userKeyResolver}"
+            - RewritePath=/api/(?<segment>.*), /api/${segment}
+
+        - id: ticket-service-docs
+          uri: lb://ticket-service
+          predicates:
+            - Path=/ticket-service/v3/api-docs
+          filters:
+            - RewritePath=/ticket-service/v3/api-docs, /v3/api-docs
+
+        - id: notification-service-api
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                key-resolver: "#{@userKeyResolver}"
+            - RewritePath=/api/(?<segment>.*), /api/${segment}
+
+        - id: notification-service-docs
+          uri: lb://notification-service
+          predicates:
+            - Path=/notification-service/v3/api-docs
+          filters:
+            - RewritePath=/notification-service/v3/api-docs, /v3/api-docs
+
+        - id: document-service-api
+          uri: lb://document-service
+          predicates:
+            - Path=/api/documents/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                key-resolver: "#{@userKeyResolver}"
+            - RewritePath=/api/(?<segment>.*), /api/${segment}
+
+        - id: document-service-docs
+          uri: lb://document-service
+          predicates:
+            - Path=/document-service/v3/api-docs
+          filters:
+            - RewritePath=/document-service/v3/api-docs, /v3/api-docs
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true    # exposes /actuator/gateway/routes for debugging
+
+  # ── Distributed tracing ───────────────────────────────────────────────────────
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
+
+# ── Springdoc — aggregated Swagger UI ────────────────────────────────────────
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - name: user-service
+        url: /user-service/v3/api-docs
+      - name: ticket-service
+        url: /ticket-service/v3/api-docs
+      - name: notification-service
+        url: /notification-service/v3/api-docs
+      - name: document-service
+        url: /document-service/v3/api-docs
+  api-docs:
+    enabled: true
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    org.springframework.security: INFO
+    com.ticketflow.gateway: INFO
+  pattern:
+    console: "%d{HH:mm:ss} [%X{traceId},%X{spanId}] %-5level %logger{36} - %msg%n"

@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: user-service
+  config:
+    import: optional:configserver:http://localhost:8888
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8180/realms/ticketflow
+
+  # Kafka producer configuration
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+# Springdoc OpenAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  info:
+    title: User Service API
+    description: Manages users, roles, and permissions
+    version: 1.0.0
+
+# Keycloak admin (fallback if config server not available)
+keycloak:
+  server-url: http://localhost:8180
+  realm: ticketflow
+  client-id: ticketflow-api
+  client-secret:  ticketflow-secret-2024
+  admin-username: admin
+  admin-password: admin
+
+server:
+  port: 8081

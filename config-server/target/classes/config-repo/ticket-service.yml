@@ -1,0 +1,35 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: ticket-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ticket_db
+    username: ticketflow
+    password: ticketflow123
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+kafka:
+  bootstrap-servers: localhost:9092
+  producer:
+    topic:
+      ticket-created: ticket.created
+      ticket-status-changed: ticket.status.changed
+
+# Resilience4j config
+resilience4j:
+  circuitbreaker:
+    instances:
+      user-service:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+  retry:
+    instances:
+      user-service:
+        max-attempts: 3
+        wait-duration: 500ms

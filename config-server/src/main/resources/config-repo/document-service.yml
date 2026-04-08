@@ -1,0 +1,25 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: document-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/document_db
+    username: ticketflow
+    password: ticketflow123
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin123
+  bucket-name: ticketflow-bucket
+
+kafka:
+  bootstrap-servers: localhost:9092
+  producer:
+    topic:
+      document-uploaded: document.uploaded
