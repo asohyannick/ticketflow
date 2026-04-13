@@ -4,7 +4,11 @@ import lombok.*;
 import java.time.LocalDateTime;
 @Entity
 @Table(name = "documents")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Document {
 
 		@Id

@@ -1,0 +1,10 @@
+# .dockerignore
+.git
+.idea
+**/.mvn
+**/target
+**/*.md
+prometheus
+keycloak
+docker-compose.yml
+.gitignore

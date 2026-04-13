@@ -1,45 +1,125 @@
 spring:
   application:
     name: ticket-service
+
   config:
-    import: optional:configserver:http://localhost:8888
+    import:
+      - optional:configserver:${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
+      - optional:file:.env.properties
+
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8180/realms/ticketflow
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ticketflow}
+
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
 
+# ─────────────────────────────────────────────────────────────
+# LOCAL PROFILE
+# ─────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: ${TICKET_DB_URL}
+    username: ${TICKET_DB_USERNAME}
+    password: ${TICKET_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  cloud:
+    config:
+      fail-fast: false
+      retry:
+        initial-interval: 3000
+        max-attempts: 10
+        max-interval: 10000
+        multiplier: 1.5
+
 server:
   port: 8082
 
-# Resilience4j — circuit breaker + retry config
+# ─────────────────────────────────────────────────────────────
+# DOCKER PROFILE
+# ─────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:postgresql://postgres-ticket:5432/ticket_db
+    username: ${POSTGRES_USER:ticketflow}
+    password: ${POSTGRES_PASSWORD:ticketflow123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  cloud:
+    config:
+      fail-fast: false           # ✅ added
+      retry:
+        initial-interval: 3000
+        max-attempts: 10
+        max-interval: 10000
+        multiplier: 1.5
+
+server:
+  port: 8082
+
+# ─────────────────────────────────────────────────────────────
+# SHARED ACROSS ALL PROFILES          ✅ outside any profile block
+# ─────────────────────────────────────────────────────────────
+---
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
 resilience4j:
   circuitbreaker:
     instances:
       user-service:
         sliding-window-size: 10
-        failure-rate-threshold: 50        # open circuit after 50% failure rate
-        wait-duration-in-open-state: 10s  # stay open for 10s before trying again
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         register-health-indicator: true
   retry:
     instances:
       user-service:
-        max-attempts: 3                   # try 3 times before giving up
-        wait-duration: 500ms              # wait 500ms between retries
+        max-attempts: 3
+        wait-duration: 500ms
         retry-exceptions:
           - java.io.IOException
           - java.util.concurrent.TimeoutException
           - feign.FeignException
 
-# Feign configuration
 feign:
   client:
     config:
@@ -49,17 +129,33 @@ feign:
   circuitbreaker:
     enabled: true
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,circuitbreakers,retries
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
+
+zipkin:
+  tracing:
+    endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,prometheus,circuitbreakers,retries
-  health:
-    circuitbreakers:
-      enabled: true    # shows circuit state in /actuator/health
+logging:
+  level:
+    com.ticketflow.ticket: INFO
+    org.springframework.kafka: INFO
+    org.springframework.cloud.openfeign: INFO

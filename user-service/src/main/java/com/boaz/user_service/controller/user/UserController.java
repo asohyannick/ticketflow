@@ -12,11 +12,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
-@Tag(name = "Users", description = "User management")
+@Tag(name = "Users Management Endpoints", description = "User management")
 @SecurityRequirement(name = "bearerAuth")
 public class UserController {
 			

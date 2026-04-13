@@ -1,19 +1,19 @@
-FROM maven:3.9.6-eclipse-temurin-17 AS builder
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /build
 
-# Copy parent pom.xml (one level up, passed via docker-compose context)
-COPY pom.xml parent-pom.xml
+COPY . .
 
-# Copy this service module
-COPY eureka-server/ eureka-server/
-
-WORKDIR /build/eureka-server
-RUN mvn clean package -DskipTests -B -f pom.xml \
+WORKDIR /build/notification-service
+RUN mvn clean package -DskipTests -B \
     -Dmaven.repo.local=/root/.m2/repository
 
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
+
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-COPY --from=builder /build/eureka-server/target/*.jar app.jar
+
+COPY --from=builder /build/notification-service/target/*.jar app.jar
+
 USER appuser
+
 ENTRYPOINT ["java","-XX:+UseContainerSupport","-XX:MaxRAMPercentage=75.0","-jar","app.jar"]

@@ -24,7 +24,8 @@ public class LoggingFilter implements GlobalFilter, Ordered {
 		@Override
 		public Mono<Void> filter(
 				ServerWebExchange exchange,
-				GatewayFilterChain chain) {
+				GatewayFilterChain chain
+		) {
 			
 			ServerHttpRequest request = exchange.getRequest();
 			long startTime = Instant.now().toEpochMilli();

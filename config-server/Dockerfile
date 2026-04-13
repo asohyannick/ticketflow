@@ -3,7 +3,7 @@ WORKDIR /build
 
 COPY . .
 
-WORKDIR /build/document-service
+WORKDIR /build/config-server
 RUN mvn clean package -DskipTests -B \
     -Dmaven.repo.local=/root/.m2/repository
 
@@ -12,7 +12,7 @@ WORKDIR /app
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=builder /build/document-service/target/*.jar app.jar
+COPY --from=builder /build/config-server/target/*.jar app.jar
 
 USER appuser
 

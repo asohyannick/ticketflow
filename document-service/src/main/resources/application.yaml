@@ -1,53 +1,159 @@
 spring:
   application:
     name: document-service
+
   config:
-    import: optional:configserver:http://localhost:8888
+    import:
+      - optional:configserver:${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
+      - optional:file:.env.properties
+
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8180/realms/ticketflow
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ticketflow}
+
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 55MB
 
+# ─────────────────────────────────────────────────────────────
+# LOCAL PROFILE
+# ─────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  datasource:
+    url: ${DOCUMENT_DB_URL}
+    username: ${DOCUMENT_DB_USERNAME}
+    password: ${DOCUMENT_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+  cloud:
+    config:
+      fail-fast: false
+      retry:
+        initial-interval: 3000
+        max-attempts: 10
+        max-interval: 10000
+        multiplier: 1.5
+
 server:
   port: 8084
 
-# MinIO connection (fallback if config server unavailable)
 minio:
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin123
-  bucket-name: ticketflow-bucket
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+  bucket-name: ${MINIO_BUCKET:ticketflow-bucket}
 
-# Kafka topic names
+# ─────────────────────────────────────────────────────────────
+# DOCKER PROFILE
+# ─────────────────────────────────────────────────────────────
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:postgresql://postgres-document:5432/document_db
+    username: ${POSTGRES_USER:ticketflow}
+    password: ${POSTGRES_PASSWORD:ticketflow123}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  cloud:
+    config:
+      fail-fast: false
+      retry:
+        initial-interval: 3000
+        max-attempts: 10
+        max-interval: 10000
+        multiplier: 1.5
+
+server:
+  port: 8084
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://minio:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin123}
+  bucket-name: ${MINIO_BUCKET:ticketflow-bucket}
+
+# ─────────────────────────────────────────────────────────────
+# SHARED ACROSS ALL PROFILES    ✅ outside any profile block
+# ─────────────────────────────────────────────────────────────
+---
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
 kafka:
   producer:
     topic:
       document-uploaded: document.uploaded
 
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-  info:
-    title: Document Service API
-    description: File upload, metadata, and pre-signed URL management
-    version: 1.0.0
+datasource:
+  hikari:
+    maximum-pool-size: 10
+    minimum-idle: 2
+    connection-timeout: 30000
+    validation-timeout: 5000
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+
+zipkin:
+  tracing:
+    endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.ticketflow.document: INFO
+    org.springframework.kafka: INFO
+    io.minio: WARN

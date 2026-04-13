@@ -36,7 +36,8 @@ public class DocumentController {
 		@ApiResponse(responseCode = "413", description = "File exceeds 50MB limit")
 		public ResponseEntity< UploadResponse > uploadDocument(
 				@RequestPart("file") MultipartFile file,
-				@RequestParam(required = false) String ticketId) {
+				@RequestParam(required = false) String ticketId
+		) {
 			
 			if (file.isEmpty()) {
 				return ResponseEntity.badRequest().build();
@@ -55,7 +56,8 @@ public class DocumentController {
 		@ApiResponse(responseCode = "200", description = "Metadata returned")
 		@ApiResponse(responseCode = "404", description = "Document not found")
 		public ResponseEntity< DocumentResponse > getDocumentMetadata(
-				@PathVariable String id) {
+				@PathVariable String id
+		) {
 			return ResponseEntity.ok(documentService.getDocumentById(id));
 		}
 		
@@ -69,7 +71,8 @@ public class DocumentController {
 		@ApiResponse(responseCode = "200", description = "Pre-signed URL returned")
 		@ApiResponse(responseCode = "404", description = "Document not found")
 		public ResponseEntity< PresignedUrlResponse > getPresignedDownloadUrl(
-				@PathVariable String id) {
+				@PathVariable String id
+		) {
 			return ResponseEntity.ok(documentService.getPresignedDownloadUrl(id));
 		}
 }

@@ -36,7 +36,7 @@
         <keycloak.version>24.0.3</keycloak.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <resilience4j.version>2.2.0</resilience4j.version>
-        <springdoc.version>2.5.0</springdoc.version>
+        <springdoc.version>2.8.17</springdoc.version>
         <minio.version>8.5.9</minio.version>
     </properties>
 
