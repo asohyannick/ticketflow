@@ -7,16 +7,16 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class UserServiceFallback implements UserServiceClient {
 
-@Override
-public UserDto getUserById(String userId) {
-	log.warn("FALLBACK: user-service is unavailable for userId={}. Returning degraded response.", userId);
-	
-	return new UserDto(
-			userId,
-			"unavailable@ticketflow.com",
-			"Service",
-			"Unavailable",
-			false
-	);
-}
+	@Override
+	public UserDto getUserById(String userId) {
+		log.warn("FALLBACK: user-service is unavailable for userId={}. Returning degraded response.", userId);
+		
+		return new UserDto(
+				userId,
+				"unavailable@ticketflow.com",
+				"Service",
+				"Unavailable",
+				false
+		);
+	}
 }

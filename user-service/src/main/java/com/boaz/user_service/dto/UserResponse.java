@@ -1,5 +1,4 @@
 package com.boaz.user_service.dto;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Set;
 public record UserResponse(

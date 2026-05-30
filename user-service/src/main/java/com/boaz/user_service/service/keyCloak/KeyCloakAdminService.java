@@ -1,6 +1,7 @@
 package com.boaz.user_service.service.keyCloak;
 import com.boaz.user_service.entity.Role;
 import com.boaz.user_service.entity.User;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,7 @@ public class KeyCloakAdminService {
 		Response response = keycloak.realm(realm).users().create(kcUser);
 		
 		if (response.getStatus() != 201) {
-			throw new RuntimeException("Failed to create user in Keycloak: HTTP " + response.getStatus());
+			throw new BadRequestException("Failed to create user in Keycloak: HTTP " + response.getStatus());
 		}
 		
 		String location = response.getHeaderString("Location");

@@ -1,5 +1,4 @@
 package com.boaz.user_service.entity;
-
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.HashSet;

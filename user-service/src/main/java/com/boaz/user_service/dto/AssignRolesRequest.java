@@ -4,5 +4,4 @@ import java.util.Set;
 public record AssignRolesRequest(
 		@NotEmpty (message = "At least one role name is required")
 		Set<String> roleNames
-) {
-}
+) { }

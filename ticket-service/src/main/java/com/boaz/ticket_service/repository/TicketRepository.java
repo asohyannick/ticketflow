@@ -5,7 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 public interface TicketRepository extends JpaRepository< Ticket, String> {
-Page<Ticket> findByStatus( TicketStatus status, Pageable pageable);
-Page<Ticket> findByCreatedByUserId(String userId, Pageable pageable);
-Page<Ticket> findByAssigneeId(String assigneeId, Pageable pageable);
+		Page<Ticket> findByStatus( TicketStatus status, Pageable pageable);
+		Page<Ticket> findByCreatedByUserId(String userId, Pageable pageable);
+		Page<Ticket> findByAssigneeId(String assigneeId, Pageable pageable);
 }

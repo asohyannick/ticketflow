@@ -11,7 +11,8 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/ticketflow}
+          issuer-uri: http://localhost:8180/realms/ticketflow
+          jwk-set-uri: http://keycloak:8180/realms/ticketflow/protocol/openid-connect/certs
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}

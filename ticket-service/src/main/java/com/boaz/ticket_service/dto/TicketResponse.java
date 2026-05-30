@@ -16,5 +16,4 @@ public record TicketResponse(
 		LocalDateTime resolvedAt,
 		List<CommentResponse> comments,
 		List <String> documentIds
-) {
-}
+) { }

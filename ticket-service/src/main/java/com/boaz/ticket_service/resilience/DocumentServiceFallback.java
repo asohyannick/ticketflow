@@ -7,13 +7,13 @@ import java.util.Map;
 @Slf4j
 public class DocumentServiceFallback implements DocumentServiceClient {
 
-@Override
-public Object getDocumentById(String documentId) {
-	log.warn("FALLBACK: document-service unavailable for documentId={}", documentId);
-	return Map.of(
-			"id", documentId,
-			"status", "unavailable",
-			"message", "Document service is currently unavailable"
-	);
-}
+		@Override
+		public Object getDocumentById(String documentId) {
+			log.warn("FALLBACK: document-service unavailable for documentId={}", documentId);
+			return Map.of(
+					"id", documentId,
+					"status", "unavailable",
+					"message", "Document service is currently unavailable"
+			);
+		}
 }

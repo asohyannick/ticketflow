@@ -20,7 +20,6 @@ public class SecurityConfig {
 					.sessionManagement(session ->
 							                   session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 					.authorizeHttpRequests(auth -> auth
-							                               // Swagger and actuator are public
 							                               .requestMatchers(
 									                               "/swagger-ui/**",
 									                               "/v3/api-docs/**",
